@@ -1,0 +1,62 @@
+#!/usr/bin/perl5.10 -w
+use strict;
+use WWW::Mechanize;
+use Getopt::Long;
+use Data::Dumper;
+use 5.010;
+$|++;
+
+my ($start_date, $start_time,$event_title,$event_url,$venue);
+my ($end_date, $end_time,$event_description, $event_tag_list);
+my $result = GetOptions ("event_title=s"    => \$event_title,
+                      "start_date=s"        => \$start_date,
+                      "start_time=s"        => \$start_time,
+                      "end_date=s"          => \$end_date,
+                      "end_time=s"          => \$end_time,
+                      "event_url=s"         => \$event_url,
+                      "event_description=s" => \$event_description,
+                      "event_tag_list=s"    => \$event_tag_list,
+                      "venue"               => \$venue,
+          );
+
+my $base_url         = 'http://calagator.org';
+my $create_event_url = "$base_url/events/new";
+my $mech             = WWW::Mechanize->new();
+my $response         = $mech->get( $create_event_url );
+
+die "Event title is required!" unless $event_title;
+
+if ($response->is_success) {
+    say "Got $create_event_url successfully (" . length($response->content) . " bytes)";
+} else {
+    say "BOOM!" . $response->status_line;
+}
+
+$mech->form_id('event_form') or die "Could not find the form event_form!";
+my $token = $mech->value('authenticity_token') or die "Could not get token!";
+
+$response = $mech->submit_form(
+    form_number => 1,
+    fields      => {
+        authenticity_token  => $token,
+        "event[title]"      => $event_title,
+        venue               => $venue || 'Free Geek',
+        start_date          => $start_date,
+        start_time          => $start_time,
+        end_date            => $end_date || $start_date,
+        end_time            => $end_time,
+        "event[url]"        => $event_url,
+        "event[description]"=> $event_description,
+        "event[tag_list]"   => $event_tag_list,
+    }
+);
+
+if ($response->is_success) {
+    if( $response->content =~ /There were problems with the following fields/) {
+        say "BOOM! ". $response->content;
+    } else {
+        say "Event $event_title created";
+    }
+} else {
+    say "BOOM! " . $response->status_line;
+}
